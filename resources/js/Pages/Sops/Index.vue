@@ -213,6 +213,16 @@ const deleteSop = (sopId) => {
                         </div>
 
                         <div class="flex items-center space-x-1">
+                            <button
+                                v-if="sop.status === 'published'"
+                                type="button"
+                                @click="router.post(route('runs.store'), { sop_id: sop.id })"
+                                class="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition cursor-pointer"
+                                title="Iniciar ejecución de este SOP"
+                            >
+                                Ejecutar
+                            </button>
+
                             <Link
                                 :href="route('sops.edit', sop.id)"
                                 class="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition"

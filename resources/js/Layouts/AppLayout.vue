@@ -111,13 +111,20 @@ const logout = () => {
                     </div>
                 </Link>
 
-                <div class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 opacity-70 cursor-not-allowed">
+                <Link
+                    :href="route('runs.index')"
+                    :class="[
+                        'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition',
+                        route().current('runs.*')
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ]"
+                >
                     <div class="flex items-center space-x-3">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         <span>Ejecuciones</span>
                     </div>
-                    <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">Fase 2</span>
-                </div>
+                </Link>
 
                 <div class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 opacity-70 cursor-not-allowed">
                     <div class="flex items-center space-x-3">

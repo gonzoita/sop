@@ -40,6 +40,11 @@ Route::middleware([
     Route::get('/sops/{sop}/export/markdown', [\App\Http\Controllers\SopController::class, 'exportMarkdown'])->name('sops.export.markdown');
     Route::get('/sops/{sop}/export/pdf', [\App\Http\Controllers\SopController::class, 'exportPdf'])->name('sops.export.pdf');
 
+    // Ejecuciones de SOPs (Equipo)
+    Route::resource('runs', \App\Http\Controllers\SopRunController::class)->only(['index', 'store', 'show', 'destroy']);
+    Route::post('/runs/{run}/steps/{step}/advance', [\App\Http\Controllers\SopRunController::class, 'advanceStep'])->name('runs.steps.advance');
+    Route::put('/runs/{run}/steps/{step}/assignment', [\App\Http\Controllers\SopRunController::class, 'updateStepAssignment'])->name('runs.steps.assignment');
+
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
             ->name('audit-logs.index');
