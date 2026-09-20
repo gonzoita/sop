@@ -7,6 +7,10 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
+use App\Models\Sop;
+use App\Policies\SopPolicy;
+use Illuminate\Support\Facades\Gate;
+
 class AppServiceProvider extends ServiceProvider
 {
     /**
@@ -22,6 +26,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Gate::policy(Sop::class, SopPolicy::class);
+
         Event::listen(Failed::class, LogFailedLoginAttempt::class);
     }
 }
