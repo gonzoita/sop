@@ -10,6 +10,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    availableVariables: {
+        type: Array,
+        default: () => [],
+    },
+    futureVariables: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['update:block', 'remove']);
@@ -26,6 +34,47 @@ const html = computed({
         });
     },
 });
+
+// Extract all {{key}} in html
+const referencedVariables = computed(() => {
+    const matches = html.value.match(/\{\{\s*([a-z0-9_]+)\s*\}\}/g) || [];
+    return [...new Set(matches.map(m => m.replace(/[\{\}\s]/g, '')))];
+});
+
+// Identify invalid variables and forward references
+const variableValidationErrors = computed(() => {
+    const errors = [];
+    const availableKeys = props.availableVariables.map(v => v.key);
+    const futureKeysMap = {};
+    props.futureVariables.forEach(v => {
+        futureKeysMap[v.key] = v;
+    });
+
+    referencedVariables.value.forEach(varKey => {
+        if (!availableKeys.includes(varKey)) {
+            if (futureKeysMap[varKey]) {
+                const future = futureKeysMap[varKey];
+                errors.push({
+                    key: varKey,
+                    type: 'forward_reference',
+                    message: `Referencia hacia adelante: {{${varKey}}} se define después en el bloque #${future.blockId}. Muévelo antes de este bloque.`,
+                });
+            } else {
+                errors.push({
+                    key: varKey,
+                    type: 'undefined',
+                    message: `Variable no definida: {{${varKey}}} no existe en los bloques anteriores de este SOP.`,
+                });
+            }
+        }
+    });
+
+    return errors;
+});
+
+const insertVariable = (varKey) => {
+    html.value = html.value ? `${html.value} {{${varKey}}}` : `{{${varKey}}}`;
+};
 </script>
 
 <template>
@@ -54,18 +103,47 @@ const html = computed({
         </div>
 
         <!-- Contenido del Bloque -->
-        <div class="p-4 space-y-2">
-            <div v-if="!readonly">
+        <div class="p-4 space-y-3">
+            <div v-if="!readonly" class="space-y-2">
                 <textarea
                     v-model="html"
                     rows="3"
                     placeholder="Instrucciones para el ejecutor o cliente. Puedes usar variables como {{nombre_marca}}..."
-                    class="w-full text-sm text-slate-700 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg"
+                    :class="[
+                        'w-full text-sm rounded-lg transition',
+                        variableValidationErrors.length > 0
+                            ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20 text-slate-800'
+                            : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 text-slate-700'
+                    ]"
                 />
-                <p class="text-[11px] text-slate-400">
-                    Soporta texto con referencias a variables: <code v-pre class="bg-slate-100 px-1 py-0.5 rounded text-slate-600 font-mono">{{clave}}</code>.
-                </p>
+
+                <!-- Errores de variables marcados en rojo en vivo -->
+                <div v-if="variableValidationErrors.length > 0" class="space-y-1">
+                    <div
+                        v-for="(err, i) in variableValidationErrors"
+                        :key="i"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center space-x-2"
+                    >
+                        <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span class="font-medium">{{ err.message }}</span>
+                    </div>
+                </div>
+
+                <!-- Barra de autocompletado rápido de variables -->
+                <div v-if="availableVariables.length > 0" class="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span class="text-[11px] text-slate-400 font-medium me-1">Insertar variable:</span>
+                    <button
+                        v-for="v in availableVariables"
+                        :key="v.key"
+                        type="button"
+                        @click="insertVariable(v.key)"
+                        class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition cursor-pointer"
+                        :title="`Insertar {{${v.key}}}`"
+                        v-text="'+ {{' + v.key + '}}'"
+                    />
+                </div>
             </div>
+
             <div v-else class="text-sm text-slate-700 prose max-w-none" v-html="html || '<em>Sin contenido</em>'" />
         </div>
     </div>

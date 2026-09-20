@@ -61,6 +61,41 @@ const blockComponents = {
     handoff: HandoffBlock,
 };
 
+// Map of all variables defined across the SOP
+const allVariables = computed(() => {
+    const list = [];
+    blocks.value.forEach((b, idx) => {
+        if (b.type === 'input' && b.props?.key) {
+            list.push({
+                key: b.props.key,
+                label: b.props.label || b.props.key,
+                blockId: b.id,
+                index: idx,
+                type: 'input',
+            });
+        } else if (b.type === 'ai_task' && b.props?.output_key) {
+            list.push({
+                key: b.props.output_key,
+                label: `Salida: ${b.props.skill_slug || b.id}`,
+                blockId: b.id,
+                index: idx,
+                type: 'ai_task',
+            });
+        }
+    });
+    return list;
+});
+
+// Variables available BEFORE the target block index (strict chronological scope)
+const getAvailableVarsBefore = (currentIndex) => {
+    return allVariables.value.filter(v => v.index < currentIndex);
+};
+
+// Variables defined AFTER the target block index (to detect and warn about forward references)
+const getFutureVarsAfter = (currentIndex) => {
+    return allVariables.value.filter(v => v.index > currentIndex);
+};
+
 // Modal for publishing
 const showPublishModal = ref(false);
 const changelogText = ref('');
@@ -206,6 +241,26 @@ const formattedLastSaved = computed(() => {
                         </span>
                     </div>
 
+                    <!-- Enlaces de Exportación -->
+                    <div class="flex items-center space-x-1 border-r border-slate-200 pr-2">
+                        <a
+                            :href="route('sops.export.markdown', sop.id)"
+                            class="inline-flex items-center px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition"
+                            title="Exportar archivo Markdown (.md)"
+                        >
+                            <svg class="w-3.5 h-3.5 me-1 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            MD
+                        </a>
+                        <a
+                            :href="route('sops.export.pdf', sop.id)"
+                            class="inline-flex items-center px-2 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                            title="Descargar documento PDF (.pdf)"
+                        >
+                            <svg class="w-3.5 h-3.5 me-1 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            PDF
+                        </a>
+                    </div>
+
                     <!-- Botón Guardar Ahora -->
                     <button
                         type="button"
@@ -263,6 +318,8 @@ const formattedLastSaved = computed(() => {
                         <component
                             :is="blockComponents[element.type]"
                             :block="element"
+                            :available-variables="getAvailableVarsBefore(index)"
+                            :future-variables="getFutureVarsAfter(index)"
                             @update:block="updateBlock(index, $event)"
                             @remove="removeBlock(index)"
                         />

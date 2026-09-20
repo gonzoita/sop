@@ -37,6 +37,8 @@ Route::middleware([
     Route::put('/sops/{sop}/draft', [\App\Http\Controllers\SopController::class, 'saveDraft'])->name('sops.draft.save');
     Route::post('/sops/{sop}/publish', [\App\Http\Controllers\SopController::class, 'publish'])->name('sops.publish');
     Route::post('/sops/{sop}/duplicate', [\App\Http\Controllers\SopController::class, 'duplicate'])->name('sops.duplicate');
+    Route::get('/sops/{sop}/export/markdown', [\App\Http\Controllers\SopController::class, 'exportMarkdown'])->name('sops.export.markdown');
+    Route::get('/sops/{sop}/export/pdf', [\App\Http\Controllers\SopController::class, 'exportPdf'])->name('sops.export.pdf');
 
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])

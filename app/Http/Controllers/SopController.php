@@ -42,7 +42,11 @@ class SopController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+            if ($request->input('status') === 'template') {
+                $query->where('is_template', true);
+            } else {
+                $query->where('status', $request->input('status'));
+            }
         }
 
         $sops = $query->paginate(12)->withQueryString();
@@ -227,5 +231,36 @@ class SopController extends Controller
 
         return redirect()->route('sops.index')
             ->with('success', 'SOP eliminado exitosamente.');
+    }
+
+    /**
+     * Export the SOP to Markdown format.
+     */
+    public function exportMarkdown(Sop $sop, \App\Actions\Sop\ExportSopToMarkdown $exporter): \Symfony\Component\HttpFoundation\Response
+    {
+        Gate::authorize('view', $sop);
+
+        $sop->load(['currentVersion', 'versions']);
+        $content = $exporter->execute($sop);
+
+        $v = $sop->currentVersion ?? $sop->versions()->latest('version_number')->first();
+        $filename = "{$sop->slug}-v" . ($v?->version_number ?? 1) . ".md";
+
+        return response($content, 200, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
+    /**
+     * Export the SOP to PDF format.
+     */
+    public function exportPdf(Sop $sop, \App\Actions\Sop\ExportSopToPdf $exporter): \Symfony\Component\HttpFoundation\Response
+    {
+        Gate::authorize('view', $sop);
+
+        $sop->load(['currentVersion', 'versions']);
+
+        return $exporter->execute($sop);
     }
 }

@@ -10,6 +10,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    availableVariables: {
+        type: Array,
+        default: () => [],
+    },
+    futureVariables: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['update:block', 'remove']);
@@ -45,6 +53,50 @@ const inputsString = computed({
         updateProp('inputs', map);
     },
 });
+
+// Extract all {{key}} referenced in inputs
+const referencedVariables = computed(() => {
+    const matches = inputsString.value.match(/\{\{\s*([a-z0-9_]+)\s*\}\}/g) || [];
+    return [...new Set(matches.map(m => m.replace(/[\{\}\s]/g, '')))];
+});
+
+// Identify invalid variables and forward references
+const variableValidationErrors = computed(() => {
+    const errors = [];
+    const availableKeys = props.availableVariables.map(v => v.key);
+    const futureKeysMap = {};
+    props.futureVariables.forEach(v => {
+        futureKeysMap[v.key] = v;
+    });
+
+    referencedVariables.value.forEach(varKey => {
+        if (!availableKeys.includes(varKey)) {
+            if (futureKeysMap[varKey]) {
+                const future = futureKeysMap[varKey];
+                errors.push({
+                    key: varKey,
+                    type: 'forward_reference',
+                    message: `Referencia hacia adelante: {{${varKey}}} se define después en el bloque #${future.blockId}.`,
+                });
+            } else {
+                errors.push({
+                    key: varKey,
+                    type: 'undefined',
+                    message: `Variable no definida: {{${varKey}}} no existe en los bloques anteriores de este SOP.`,
+                });
+            }
+        }
+    });
+
+    return errors;
+});
+
+const insertVariableIntoInputs = (varKey) => {
+    const current = inputsString.value.trim();
+    inputsString.value = current
+        ? `${current}\nparam_${varKey}: {{${varKey}}}`
+        : `param_${varKey}: {{${varKey}}}`;
+};
 </script>
 
 <template>
@@ -59,6 +111,7 @@ const inputsString = computed({
                     <svg class="w-3 h-3 me-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     Tarea de IA
                 </span>
+                <span class="text-xs font-mono text-slate-400">#{{ block.id }}</span>
                 <span v-if="aiProps.output_key" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-emerald-100 text-emerald-800" v-text="'Salida: {{' + aiProps.output_key + '}}'" />
             </div>
 
@@ -127,7 +180,7 @@ const inputsString = computed({
             </div>
 
             <!-- Mapeo de Entradas (inputs) -->
-            <div>
+            <div class="space-y-1.5">
                 <label class="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
                     Variables de Entrada (un par por línea, ej: <code v-pre class="font-mono text-indigo-600">marca: {{nombre_marca}}</code>)
                 </label>
@@ -136,9 +189,40 @@ const inputsString = computed({
                     v-model="inputsString"
                     rows="2"
                     placeholder="marca: {{nombre_marca}}&#10;objetivo: {{objetivo_campana}}"
-                    class="w-full text-xs font-mono text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg placeholder:font-sans"
+                    :class="[
+                        'w-full text-xs font-mono rounded-lg placeholder:font-sans transition',
+                        variableValidationErrors.length > 0
+                            ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20 text-slate-800'
+                            : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 text-slate-800'
+                    ]"
                 />
                 <pre v-else class="text-xs font-mono bg-slate-50 p-2 rounded">{{ inputsString || 'Sin entradas' }}</pre>
+
+                <!-- Errores de variables marcados en rojo en vivo -->
+                <div v-if="variableValidationErrors.length > 0" class="space-y-1">
+                    <div
+                        v-for="(err, i) in variableValidationErrors"
+                        :key="i"
+                        class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center space-x-2"
+                    >
+                        <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        <span class="font-medium">{{ err.message }}</span>
+                    </div>
+                </div>
+
+                <!-- Chips para insertar variables disponibles -->
+                <div v-if="availableVariables.length > 0" class="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span class="text-[11px] text-slate-400 font-medium me-1">Insertar variable:</span>
+                    <button
+                        v-for="v in availableVariables"
+                        :key="v.key"
+                        type="button"
+                        @click="insertVariableIntoInputs(v.key)"
+                        class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition cursor-pointer"
+                        :title="`Añadir entrada con {{${v.key}}}`"
+                        v-text="'+ {{' + v.key + '}}'"
+                    />
+                </div>
             </div>
 
             <!-- Output Key y Aprobación -->

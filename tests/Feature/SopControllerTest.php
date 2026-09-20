@@ -192,4 +192,66 @@ class SopControllerTest extends TestCase
         $this->assertNotNull($duplicate);
         $response->assertRedirect(route('sops.edit', $duplicate->id));
     }
+
+    public function test_store_creates_sop_as_template(): void
+    {
+        $admin = $this->createUserWithTeam('admin');
+        $this->actingAs($admin);
+        session(['current_team_id' => $admin->current_team_id]);
+
+        $response = $this->post(route('sops.store'), [
+            'title' => 'Plantilla de Campañas',
+            'is_template' => true,
+        ]);
+
+        $sop = Sop::where('title', 'Plantilla de Campañas')->first();
+        $this->assertNotNull($sop);
+        $this->assertTrue($sop->is_template);
+        $response->assertRedirect(route('sops.edit', $sop->id));
+    }
+
+    public function test_sops_index_filters_by_template(): void
+    {
+        $admin = $this->createUserWithTeam('admin');
+        $this->actingAs($admin);
+        session(['current_team_id' => $admin->current_team_id]);
+
+        app(CreateSop::class)->execute($admin, ['title' => 'SOP Normal', 'is_template' => false]);
+        app(CreateSop::class)->execute($admin, ['title' => 'SOP Plantilla Especial', 'is_template' => true]);
+
+        $response = $this->get(route('sops.index', ['status' => 'template']));
+        $response->assertStatus(200);
+        $response->assertInertia(fn ($page) => $page
+            ->component('Sops/Index')
+            ->where('sops.data.0.title', 'SOP Plantilla Especial')
+            ->has('sops.data', 1)
+        );
+    }
+
+    public function test_export_markdown_returns_attachment(): void
+    {
+        $admin = $this->createUserWithTeam('admin');
+        $this->actingAs($admin);
+        session(['current_team_id' => $admin->current_team_id]);
+
+        $sop = app(CreateSop::class)->execute($admin, ['title' => 'SOP Exportable MD']);
+
+        $response = $this->get(route('sops.export.markdown', $sop->id));
+        $response->assertStatus(200);
+        $response->assertHeader('content-type', 'text/markdown; charset=UTF-8');
+        $this->assertStringContainsString('# SOP Exportable MD', $response->getContent());
+    }
+
+    public function test_export_pdf_returns_pdf_response(): void
+    {
+        $admin = $this->createUserWithTeam('admin');
+        $this->actingAs($admin);
+        session(['current_team_id' => $admin->current_team_id]);
+
+        $sop = app(CreateSop::class)->execute($admin, ['title' => 'SOP Exportable PDF']);
+
+        $response = $this->get(route('sops.export.pdf', $sop->id));
+        $response->assertStatus(200);
+        $response->assertHeader('content-type', 'application/pdf');
+    }
 }

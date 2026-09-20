@@ -10,6 +10,14 @@ const props = defineProps({
         type: Boolean,
         default: false,
     },
+    availableVariables: {
+        type: Array,
+        default: () => [],
+    },
+    futureVariables: {
+        type: Array,
+        default: () => [],
+    },
 });
 
 const emit = defineEmits(['update:block', 'remove']);
@@ -24,6 +32,48 @@ const updateProp = (key, value) => {
             [key]: value,
         },
     });
+};
+
+// Extract variables in message
+const referencedVariables = computed(() => {
+    const matches = (handoffProps.value.message || '').match(/\{\{\s*([a-z0-9_]+)\s*\}\}/g) || [];
+    return [...new Set(matches.map(m => m.replace(/[\{\}\s]/g, '')))];
+});
+
+// Identify invalid variables and forward references
+const variableValidationErrors = computed(() => {
+    const errors = [];
+    const availableKeys = props.availableVariables.map(v => v.key);
+    const futureKeysMap = {};
+    props.futureVariables.forEach(v => {
+        futureKeysMap[v.key] = v;
+    });
+
+    referencedVariables.value.forEach(varKey => {
+        if (!availableKeys.includes(varKey)) {
+            if (futureKeysMap[varKey]) {
+                const future = futureKeysMap[varKey];
+                errors.push({
+                    key: varKey,
+                    type: 'forward_reference',
+                    message: `Referencia hacia adelante: {{${varKey}}} se define después en el bloque #${future.blockId}.`,
+                });
+            } else {
+                errors.push({
+                    key: varKey,
+                    type: 'undefined',
+                    message: `Variable no definida: {{${varKey}}} no existe en los bloques anteriores de este SOP.`,
+                });
+            }
+        }
+    });
+
+    return errors;
+});
+
+const insertVariable = (varKey) => {
+    const current = handoffProps.value.message || '';
+    updateProp('message', current ? `${current} {{${varKey}}}` : `{{${varKey}}}`);
 };
 </script>
 
@@ -72,7 +122,7 @@ const updateProp = (key, value) => {
                     <span v-else class="text-xs text-slate-800">{{ handoffProps.to === 'client' ? 'Cliente' : 'Equipo' }}</span>
                 </div>
 
-                <div class="md:col-span-2">
+                <div class="md:col-span-2 space-y-1.5">
                     <label class="block text-[11px] font-semibold text-slate-600 uppercase mb-1">
                         Mensaje explicativo (admite variables)
                     </label>
@@ -82,9 +132,40 @@ const updateProp = (key, value) => {
                         :value="handoffProps.message"
                         @input="updateProp('message', $event.target.value)"
                         placeholder="ej. Por favor revisa el brief generado y confirma para iniciar la campaña..."
-                        class="w-full text-xs text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg"
+                        :class="[
+                            'w-full text-xs rounded-lg transition',
+                            variableValidationErrors.length > 0
+                                ? 'border-rose-300 focus:border-rose-500 focus:ring-rose-500 bg-rose-50/20 text-slate-800'
+                                : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 text-slate-800'
+                        ]"
                     />
                     <span v-else class="text-xs text-slate-700">{{ handoffProps.message }}</span>
+
+                    <!-- Errores de variables marcados en rojo en vivo -->
+                    <div v-if="variableValidationErrors.length > 0" class="space-y-1">
+                        <div
+                            v-for="(err, i) in variableValidationErrors"
+                            :key="i"
+                            class="px-2.5 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center space-x-2"
+                        >
+                            <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span class="font-medium">{{ err.message }}</span>
+                        </div>
+                    </div>
+
+                    <!-- Chips para insertar variables disponibles -->
+                    <div v-if="availableVariables.length > 0" class="flex flex-wrap items-center gap-1.5 pt-1">
+                        <span class="text-[11px] text-slate-400 font-medium me-1">Insertar variable:</span>
+                        <button
+                        v-for="v in availableVariables"
+                        :key="v.key"
+                        type="button"
+                        @click="insertVariable(v.key)"
+                        class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-mono bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200/60 transition cursor-pointer"
+                        :title="`Insertar {{${v.key}}}`"
+                        v-text="'+ {{' + v.key + '}}'"
+                    />
+                    </div>
                 </div>
             </div>
 

@@ -125,6 +125,7 @@ const deleteSop = (sopId) => {
                         <option value="">Todos los estados</option>
                         <option value="published">Publicados</option>
                         <option value="draft">Borradores</option>
+                        <option value="template">Solo Plantillas</option>
                     </select>
                 </div>
 
@@ -165,16 +166,25 @@ const deleteSop = (sopId) => {
                 >
                     <div class="space-y-2">
                         <div class="flex items-center justify-between">
-                            <span
-                                :class="[
-                                    'px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border',
-                                    sop.status === 'published'
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                        : 'bg-amber-50 text-amber-700 border-amber-200'
-                                ]"
-                            >
-                                {{ sop.status === 'published' ? 'Publicado' : 'Borrador' }}
-                            </span>
+                            <div class="flex items-center space-x-1.5">
+                                <span
+                                    :class="[
+                                        'px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border',
+                                        sop.status === 'published'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                            : 'bg-amber-50 text-amber-700 border-amber-200'
+                                    ]"
+                                >
+                                    {{ sop.status === 'published' ? 'Publicado' : 'Borrador' }}
+                                </span>
+
+                                <span
+                                    v-if="sop.is_template"
+                                    class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200"
+                                >
+                                    Plantilla
+                                </span>
+                            </div>
 
                             <span v-if="sop.category" class="text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
                                 {{ sop.category }}
@@ -210,6 +220,23 @@ const deleteSop = (sopId) => {
                             >
                                 Editar
                             </Link>
+
+                            <a
+                                :href="route('sops.export.markdown', sop.id)"
+                                class="p-1 text-slate-400 hover:text-indigo-600 rounded-lg transition"
+                                title="Descargar Markdown (.md)"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            </a>
+
+                            <a
+                                :href="route('sops.export.pdf', sop.id)"
+                                target="_blank"
+                                class="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition"
+                                title="Descargar PDF"
+                            >
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            </a>
 
                             <button
                                 type="button"
@@ -305,6 +332,18 @@ const deleteSop = (sopId) => {
                             placeholder="Propósito del procedimiento, responsables y alcance..."
                             class="w-full text-xs text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
                         />
+                    </div>
+
+                    <div class="flex items-center space-x-2 pt-1">
+                        <input
+                            type="checkbox"
+                            id="is_template"
+                            v-model="createForm.is_template"
+                            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                        />
+                        <label for="is_template" class="text-xs text-slate-700 font-medium cursor-pointer">
+                            Guardar como plantilla reutilizable
+                        </label>
                     </div>
 
                     <div class="pt-2 flex items-center justify-end space-x-2 border-t border-slate-100">
