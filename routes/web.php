@@ -53,6 +53,18 @@ Route::middleware([
             ->name('audit-logs.index');
         Route::resource('automation-triggers', \App\Http\Controllers\Admin\AutomationTriggerController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+
+        // Configuración y presupuesto de IA
+        Route::get('/ai-settings', [\App\Http\Controllers\Admin\AiSettingController::class, 'index'])
+            ->name('ai-settings.index');
+        Route::post('/ai-settings/credentials', [\App\Http\Controllers\Admin\AiSettingController::class, 'storeCredential'])
+            ->name('ai-settings.credentials.store');
+        Route::patch('/ai-settings/credentials/{credential}/toggle', [\App\Http\Controllers\Admin\AiSettingController::class, 'toggleCredential'])
+            ->name('ai-settings.credentials.toggle');
+        Route::delete('/ai-settings/credentials/{credential}', [\App\Http\Controllers\Admin\AiSettingController::class, 'destroyCredential'])
+            ->name('ai-settings.credentials.destroy');
+        Route::put('/ai-settings/budget', [\App\Http\Controllers\Admin\AiSettingController::class, 'updateBudget'])
+            ->name('ai-settings.budget.update');
     });
 
     // Invitación de clientes desde panel de agencia
