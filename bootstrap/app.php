@@ -15,10 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\RedirectIfClient::class,
         ]);
 
         $middleware->alias([
             'admin.2fa' => \App\Http\Middleware\EnsureAdminHasTwoFactorEnabled::class,
+            'portal.client' => \App\Http\Middleware\EnsureUserIsClient::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

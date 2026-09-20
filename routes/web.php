@@ -49,4 +49,29 @@ Route::middleware([
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
             ->name('audit-logs.index');
     });
+
+    // Invitación de clientes desde panel de agencia
+    Route::post('/clients/{client}/invitations', [\App\Http\Controllers\Portal\ClientInvitationController::class, 'store'])
+        ->name('clients.invitations.store');
 });
+
+// Rutas públicas de invitación a clientes
+Route::get('/portal/invitation/{token}', [\App\Http\Controllers\Portal\ClientInvitationController::class, 'show'])
+    ->name('portal.invitations.accept');
+Route::post('/portal/invitation/{token}', [\App\Http\Controllers\Portal\ClientInvitationController::class, 'accept'])
+    ->name('portal.invitations.process');
+
+// Portal exclusivo para clientes (Aislamiento total)
+Route::middleware([
+    'auth:sanctum',
+    config('jetstream.auth_session'),
+    'verified',
+    'portal.client',
+])->prefix('portal')->name('portal.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Portal\ClientPortalController::class, 'index'])->name('runs.index');
+    Route::get('/runs/{run}', [\App\Http\Controllers\Portal\ClientPortalController::class, 'show'])->name('runs.show');
+    Route::post('/runs/{run}/steps/{step}/advance', [\App\Http\Controllers\Portal\ClientPortalController::class, 'advanceStep'])->name('runs.steps.advance');
+    Route::post('/runs/{run}/upload', [\App\Http\Controllers\Portal\ClientPortalController::class, 'uploadFile'])->name('runs.upload');
+    Route::get('/runs/{run}/files/{file}', [\App\Http\Controllers\Portal\ClientPortalController::class, 'downloadFile'])->name('runs.files.download');
+});
+

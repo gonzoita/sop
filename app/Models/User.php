@@ -69,4 +69,16 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function clients(): \Illuminate\Database\Eloquent\Relations\BelongsToMany
+    {
+        return $this->belongsToMany(Client::class, 'client_user')
+            ->withPivot(['role', 'invited_at', 'accepted_at'])
+            ->withTimestamps();
+    }
+
+    public function isClient(): bool
+    {
+        return $this->hasRole('cliente') || $this->hasPermissionTo('access-client-portal');
+    }
 }

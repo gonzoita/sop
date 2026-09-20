@@ -6,6 +6,8 @@ use App\Models\Concerns\BelongsToTeam;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -27,6 +29,28 @@ class Client extends Model
         return [
             'meta' => 'array',
         ];
+    }
+
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'client_user')
+            ->withPivot(['role', 'invited_at', 'accepted_at'])
+            ->withTimestamps();
+    }
+
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(ClientInvitation::class);
+    }
+
+    public function runs(): HasMany
+    {
+        return $this->hasMany(SopRun::class);
+    }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(ClientFile::class);
     }
 
     public function getActivitylogOptions(): LogOptions
