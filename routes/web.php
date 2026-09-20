@@ -32,6 +32,12 @@ Route::middleware([
         return Inertia::render('Dashboard');
     })->name('dashboard');
 
+    // SOPs (Constructor y Gestión)
+    Route::resource('sops', \App\Http\Controllers\SopController::class);
+    Route::put('/sops/{sop}/draft', [\App\Http\Controllers\SopController::class, 'saveDraft'])->name('sops.draft.save');
+    Route::post('/sops/{sop}/publish', [\App\Http\Controllers\SopController::class, 'publish'])->name('sops.publish');
+    Route::post('/sops/{sop}/duplicate', [\App\Http\Controllers\SopController::class, 'duplicate'])->name('sops.duplicate');
+
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
             ->name('audit-logs.index');
