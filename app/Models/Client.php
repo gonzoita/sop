@@ -24,6 +24,13 @@ class Client extends Model
         'meta',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(function (Client $client) {
+            \App\Events\ClientCreated::dispatch($client);
+        });
+    }
+
     protected function casts(): array
     {
         return [

@@ -45,9 +45,14 @@ Route::middleware([
     Route::post('/runs/{run}/steps/{step}/advance', [\App\Http\Controllers\SopRunController::class, 'advanceStep'])->name('runs.steps.advance');
     Route::put('/runs/{run}/steps/{step}/assignment', [\App\Http\Controllers\SopRunController::class, 'updateStepAssignment'])->name('runs.steps.assignment');
 
+    // Gestión de Clientes (Agencia)
+    Route::resource('clients', \App\Http\Controllers\ClientController::class)->only(['index', 'store', 'destroy']);
+
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
             ->name('audit-logs.index');
+        Route::resource('automation-triggers', \App\Http\Controllers\Admin\AutomationTriggerController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
     });
 
     // Invitación de clientes desde panel de agencia

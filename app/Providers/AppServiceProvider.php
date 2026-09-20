@@ -29,5 +29,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Sop::class, SopPolicy::class);
 
         Event::listen(Failed::class, LogFailedLoginAttempt::class);
+        Event::listen(\App\Events\ClientCreated::class, \App\Listeners\ProcessAutomationTriggers::class);
+        Event::listen(\App\Events\RunCompleted::class, \App\Listeners\ProcessAutomationTriggers::class);
+        Event::listen(\App\Events\RunStepApproved::class, \App\Listeners\ProcessAutomationTriggers::class);
     }
 }

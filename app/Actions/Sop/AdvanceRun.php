@@ -141,10 +141,20 @@ class AdvanceRun
 
             $step->save();
 
+            $previousStatus = $run->status;
+
             // Recalculate run status
             $this->recalculateRunStatus($run);
 
             $run->save();
+
+            if ($step->status === 'approved') {
+                \App\Events\RunStepApproved::dispatch($run, $step);
+            }
+
+            if ($previousStatus !== 'completed' && $run->status === 'completed') {
+                \App\Events\RunCompleted::dispatch($run);
+            }
 
             return $run->fresh(['steps', 'sop', 'sopVersion', 'client']);
         });
