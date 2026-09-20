@@ -44,6 +44,11 @@ class Sop extends Model
         return $this->hasMany(SopVersion::class)->orderBy('version_number', 'desc');
     }
 
+    public function runs(): HasMany
+    {
+        return $this->hasMany(SopRun::class)->latest();
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToTeam;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SopVersion extends Model
 {
@@ -45,6 +46,11 @@ class SopVersion extends Model
     public function sop(): BelongsTo
     {
         return $this->belongsTo(Sop::class);
+    }
+
+    public function runs(): HasMany
+    {
+        return $this->hasMany(SopRun::class);
     }
 
     public function creator(): BelongsTo
