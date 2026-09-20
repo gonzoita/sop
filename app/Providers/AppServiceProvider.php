@@ -31,6 +31,12 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Failed::class, LogFailedLoginAttempt::class);
         Event::listen(\App\Events\ClientCreated::class, \App\Listeners\ProcessAutomationTriggers::class);
         Event::listen(\App\Events\RunCompleted::class, \App\Listeners\ProcessAutomationTriggers::class);
+        Event::listen(\App\Events\RunCompleted::class, function (\App\Events\RunCompleted $event) {
+            $run = $event->run;
+            if ($run->started_by && ($starter = \App\Models\User::find($run->started_by))) {
+                $starter->notify(new \App\Notifications\RunCompletedNotification($run));
+            }
+        });
         Event::listen(\App\Events\RunStepApproved::class, \App\Listeners\ProcessAutomationTriggers::class);
     }
 }

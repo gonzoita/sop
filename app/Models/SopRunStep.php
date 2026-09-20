@@ -23,6 +23,7 @@ class SopRunStep extends Model
         'notes',
         'due_at',
         'completed_at',
+        'last_reminded_at',
     ];
 
     protected function casts(): array
@@ -31,6 +32,7 @@ class SopRunStep extends Model
             'output' => 'array',
             'due_at' => 'datetime',
             'completed_at' => 'datetime',
+            'last_reminded_at' => 'datetime',
         ];
     }
 

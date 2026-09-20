@@ -158,7 +158,15 @@ class SopRunController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $originalAssignee = $step->assigned_to;
         $step->update($validated);
+
+        if (! empty($validated['assigned_to']) && (int) $validated['assigned_to'] !== (int) $originalAssignee) {
+            $assignee = \App\Models\User::find($validated['assigned_to']);
+            if ($assignee) {
+                $assignee->notify(new \App\Notifications\StepAssignedNotification($run, $step));
+            }
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
