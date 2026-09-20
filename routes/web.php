@@ -13,6 +13,16 @@ Route::get('/', function () {
     ]);
 });
 
+Route::middleware(['throttle:password-reset'])->group(function () {
+    Route::post('/forgot-password', [\Laravel\Fortify\Http\Controllers\PasswordResetLinkController::class, 'store'])
+        ->middleware(['web', 'guest:'.config('fortify.guard')])
+        ->name('password.email');
+
+    Route::post('/reset-password', [\Laravel\Fortify\Http\Controllers\NewPasswordController::class, 'store'])
+        ->middleware(['web', 'guest:'.config('fortify.guard')])
+        ->name('password.update');
+});
+
 Route::middleware([
     'auth:sanctum',
     config('jetstream.auth_session'),
@@ -22,6 +32,8 @@ Route::middleware([
         return Inertia::render('Dashboard');
     })->name('dashboard');
 
-    Route::get('/admin/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
-        ->name('admin.audit-logs.index');
+    Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
+        Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
+            ->name('audit-logs.index');
+    });
 });

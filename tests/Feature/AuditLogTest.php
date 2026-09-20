@@ -71,6 +71,12 @@ class AuditLogTest extends TestCase
     public function test_admin_can_access_audit_log_index(): void
     {
         $admin = User::where('email', 'admin@sopforge.com')->first();
+        $admin->forceFill([
+            'two_factor_secret' => encrypt('secret'),
+            'two_factor_recovery_codes' => encrypt(json_encode(['code1'])),
+            'two_factor_confirmed_at' => now(),
+        ])->save();
+
         $this->actingAs($admin);
         session(['current_team_id' => $admin->current_team_id]);
 
