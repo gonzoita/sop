@@ -2,6 +2,13 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import DialogModal from '@/Components/DialogModal.vue';
+import SecondaryButton from '@/Components/SecondaryButton.vue';
+import PrimaryButton from '@/Components/PrimaryButton.vue';
+import InputLabel from '@/Components/InputLabel.vue';
+import TextInput from '@/Components/TextInput.vue';
+import InputError from '@/Components/InputError.vue';
+import axios from 'axios';
 
 const props = defineProps({
     run: {
@@ -9,6 +16,10 @@ const props = defineProps({
         required: true,
     },
     teamMembers: {
+        type: Array,
+        default: () => [],
+    },
+    publishedDocuments: {
         type: Array,
         default: () => [],
     },
@@ -234,6 +245,48 @@ const getStatusBadge = (status) => {
             return { label: 'Pendiente', class: 'bg-slate-50 text-slate-600 border-slate-200' };
     }
 };
+
+// Modal y estado para "Compartir con el cliente"
+const showPublishClientModal = ref(false);
+const isPreviewLoading = ref(false);
+const publishClientForm = useForm({
+    title: '',
+    markdown: '',
+});
+
+const openPublishModal = async () => {
+    showPublishClientModal.value = true;
+    isPreviewLoading.value = true;
+    publishClientForm.title = props.run.title || 'Entregable Final';
+    publishClientForm.markdown = '';
+
+    try {
+        const response = await axios.get(route('runs.deliverable.preview', props.run.id));
+        publishClientForm.title = response.data.title;
+        publishClientForm.markdown = response.data.markdown;
+    } catch (err) {
+        console.error('Error cargando preview del entregable', err);
+    } finally {
+        isPreviewLoading.value = false;
+    }
+};
+
+const submitPublishToClient = () => {
+    publishClientForm.post(route('runs.client-documents.store', props.run.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            showPublishClientModal.value = false;
+        },
+    });
+};
+
+const revokeDocument = (docId) => {
+    if (confirm('¿Estás seguro de revocar este documento? El cliente dejará de verlo en su portal de forma inmediata.')) {
+        router.patch(route('client-documents.revoke', docId), {}, {
+            preserveScroll: true,
+        });
+    }
+};
 </script>
 
 <template>
@@ -273,6 +326,19 @@ const getStatusBadge = (status) => {
                         </svg>
                         <span>Exportar entregable</span>
                     </a>
+
+                    <button
+                        v-if="run.client_id"
+                        type="button"
+                        @click="openPublishModal"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors cursor-pointer"
+                        title="Publicar entregable revisado en el portal del cliente"
+                    >
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                        </svg>
+                        <span>Compartir con el cliente</span>
+                    </button>
                 </div>
             </div>
 
@@ -700,6 +766,77 @@ const getStatusBadge = (status) => {
                         </div>
                     </div>
                 </div>
+
+                <!-- Sección: Documentos compartidos con el cliente -->
+                <div v-if="run.client_id" class="bg-white rounded-2xl border border-slate-200 p-6 shadow-2xs space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div class="flex items-center space-x-2">
+                            <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                            </svg>
+                            <h3 class="text-sm font-bold text-slate-900">
+                                Documentos compartidos con el cliente
+                            </h3>
+                        </div>
+                        <button
+                            type="button"
+                            @click="openPublishModal"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer"
+                        >
+                            <span>+ Publicar nuevo entregable</span>
+                        </button>
+                    </div>
+
+                    <div v-if="publishedDocuments.length === 0" class="text-xs text-slate-500 py-4 text-center">
+                        No hay documentos compartidos con este cliente todavía.
+                    </div>
+
+                    <div v-else class="divide-y divide-slate-100">
+                        <div
+                            v-for="doc in publishedDocuments"
+                            :key="doc.id"
+                            class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                            <div class="space-y-1">
+                                <div class="flex items-center space-x-2">
+                                    <span class="font-semibold text-slate-800 text-sm">{{ doc.title }}</span>
+                                    <span
+                                        v-if="doc.status === 'published'"
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                    >
+                                        Publicado
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200"
+                                    >
+                                        Revocado
+                                    </span>
+                                </div>
+                                <div class="text-[11px] text-slate-500 flex items-center space-x-3">
+                                    <span>Publicado por: <strong class="text-slate-700">{{ doc.publisher?.name || 'Equipo' }}</strong></span>
+                                    <span>&bull;</span>
+                                    <span>Fecha: {{ doc.published_at ? doc.published_at.substring(0, 16).replace('T', ' ') : '-' }}</span>
+                                    <template v-if="doc.status === 'revoked'">
+                                        <span>&bull;</span>
+                                        <span class="text-rose-600 font-medium">Revocado: {{ doc.updated_at ? doc.updated_at.substring(0, 16).replace('T', ' ') : '' }}</span>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center space-x-2 shrink-0">
+                                <button
+                                    v-if="doc.status === 'published'"
+                                    type="button"
+                                    @click="revokeDocument(doc.id)"
+                                    class="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 rounded-xl transition cursor-pointer"
+                                >
+                                    Revocar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Columna Lateral: Panel de Variables y Datos -->
@@ -828,5 +965,72 @@ const getStatusBadge = (status) => {
                 </form>
             </div>
         </div>
+
+        <!-- Modal Publicar Entregable al Cliente -->
+        <DialogModal :show="showPublishClientModal" @close="showPublishClientModal = false" max-width="2xl">
+            <template #title>
+                <div class="flex items-center space-x-2">
+                    <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Publicar Entregable al Cliente</span>
+                </div>
+            </template>
+
+            <template #content>
+                <div class="space-y-4">
+                    <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2">
+                        <svg class="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span><strong>Aviso de confidencialidad:</strong> Esto es exactamente lo que verá el cliente. Revisa que no haya información interna antes de publicar.</span>
+                    </div>
+
+                    <div>
+                        <InputLabel for="doc-title" value="Título del documento para el cliente" class="text-xs font-semibold text-slate-700 mb-1" />
+                        <TextInput
+                            id="doc-title"
+                            v-model="publishClientForm.title"
+                            type="text"
+                            class="w-full text-xs"
+                            placeholder="Ej: Entregable de Estrategia Digital"
+                            required
+                        />
+                        <InputError :message="publishClientForm.errors.title" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <InputLabel for="doc-markdown" value="Contenido en Markdown" class="text-xs font-semibold text-slate-700" />
+                            <span v-if="isPreviewLoading" class="text-[11px] text-indigo-600 animate-pulse font-medium">Cargando borrador...</span>
+                        </div>
+                        <textarea
+                            id="doc-markdown"
+                            v-model="publishClientForm.markdown"
+                            rows="12"
+                            class="w-full font-mono text-xs text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
+                            placeholder="Revisa o edita el contenido antes de compartir..."
+                            :disabled="isPreviewLoading"
+                            required
+                        ></textarea>
+                        <InputError :message="publishClientForm.errors.markdown" class="mt-1" />
+                    </div>
+                </div>
+            </template>
+
+            <template #footer>
+                <div class="flex items-center justify-end space-x-2">
+                    <SecondaryButton @click="showPublishClientModal = false">
+                        Cancelar
+                    </SecondaryButton>
+                    <PrimaryButton
+                        :disabled="publishClientForm.processing || isPreviewLoading"
+                        @click="submitPublishToClient"
+                    >
+                        Publicar al cliente
+                    </PrimaryButton>
+                </div>
+            </template>
+        </DialogModal>
     </AppLayout>
 </template>

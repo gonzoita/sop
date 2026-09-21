@@ -155,6 +155,10 @@ timestamps, soft deletes.
 **`client_user`** — usuarios externos con acceso al portal.
 `id`, `client_id`, `user_id`, `role` (`owner|collaborator`), `invited_at`, `accepted_at`.
 
+**`client_documents`** — entregables revisados y publicados de forma inmutable hacia el portal del cliente.
+`id`, `team_id`, `client_id`, `sop_run_id` nullable, `title`, `markdown` LONGTEXT, `published_by`,
+`published_at`, `revoked_at` nullable, timestamps. Índice en (`team_id`, `client_id`).
+
 ### SOPs
 
 **`sops`** — la plantilla.

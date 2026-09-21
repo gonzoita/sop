@@ -123,9 +123,23 @@ class SopRunController extends Controller
             ? $team->allUsers()->map(fn ($u) => ['id' => $u->id, 'name' => $u->name, 'email' => $u->email])
             : [];
 
+        $publishedDocuments = \App\Models\ClientDocument::where('sop_run_id', $run->id)
+            ->with('publisher:id,name')
+            ->latest('published_at')
+            ->get()
+            ->map(fn ($d) => [
+                'id' => $d->id,
+                'title' => $d->title,
+                'published_at' => $d->published_at?->format('d/m/Y H:i'),
+                'revoked_at' => $d->revoked_at?->format('d/m/Y H:i'),
+                'is_revoked' => $d->isRevoked(),
+                'publisher_name' => $d->publisher?->name ?? 'Equipo',
+            ]);
+
         return Inertia::render('Runs/Show', [
             'run' => $run,
             'teamMembers' => $teamMembers,
+            'publishedDocuments' => $publishedDocuments,
         ]);
     }
 

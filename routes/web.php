@@ -48,6 +48,9 @@ Route::middleware([
     Route::post('/runs/{run}/steps/{step}/reject-ai', [\App\Http\Controllers\SopRunController::class, 'rejectAiStep'])->name('runs.steps.reject-ai');
     Route::post('/runs/{run}/steps/{step}/retry-ai', [\App\Http\Controllers\SopRunController::class, 'retryAiStep'])->name('runs.steps.retry-ai');
     Route::get('/runs/{run}/export/deliverable', [\App\Http\Controllers\SopRunController::class, 'exportDeliverable'])->name('runs.export.deliverable');
+    Route::get('/runs/{run}/deliverable-preview', [\App\Http\Controllers\ClientDocumentController::class, 'preview'])->name('runs.deliverable.preview');
+    Route::post('/runs/{run}/client-documents', [\App\Http\Controllers\ClientDocumentController::class, 'store'])->name('runs.client-documents.store');
+    Route::patch('/client-documents/{document}/revoke', [\App\Http\Controllers\ClientDocumentController::class, 'revoke'])->name('client-documents.revoke');
 
     // Gestión de Clientes (Agencia)
     Route::resource('clients', \App\Http\Controllers\ClientController::class)->only(['index', 'store', 'destroy']);
@@ -103,5 +106,11 @@ Route::middleware([
     Route::post('/runs/{run}/steps/{step}/advance', [\App\Http\Controllers\Portal\ClientPortalController::class, 'advanceStep'])->name('runs.steps.advance');
     Route::post('/runs/{run}/upload', [\App\Http\Controllers\Portal\ClientPortalController::class, 'uploadFile'])->name('runs.upload');
     Route::get('/runs/{run}/files/{file}', [\App\Http\Controllers\Portal\ClientPortalController::class, 'downloadFile'])->name('runs.files.download');
+
+    // Documentos publicados al cliente
+    Route::get('/documents', [\App\Http\Controllers\Portal\ClientPortalDocumentController::class, 'index'])->name('documents.index');
+    Route::get('/documents/{document}', [\App\Http\Controllers\Portal\ClientPortalDocumentController::class, 'show'])->name('documents.show');
+    Route::get('/documents/{document}/download-md', [\App\Http\Controllers\Portal\ClientPortalDocumentController::class, 'downloadMarkdown'])->name('documents.download.md');
+    Route::get('/documents/{document}/download-pdf', [\App\Http\Controllers\Portal\ClientPortalDocumentController::class, 'downloadPdf'])->name('documents.download.pdf');
 });
 

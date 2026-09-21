@@ -23,7 +23,7 @@ const logout = () => {
         <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
             <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
                 <!-- Brand / Portal identity -->
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-6">
                     <Link :href="route('portal.runs.index')" class="flex items-center gap-2">
                         <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-600 to-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-sm">
                             S
@@ -33,6 +33,32 @@ const logout = () => {
                             <span class="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Portal de Cliente</span>
                         </div>
                     </Link>
+
+                    <!-- Navigation Tabs -->
+                    <nav class="hidden sm:flex items-center space-x-1">
+                        <Link
+                            :href="route('portal.runs.index')"
+                            :class="[
+                                'px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors',
+                                route().current('portal.runs.*')
+                                    ? 'bg-amber-100/80 text-amber-900 font-bold'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            ]"
+                        >
+                            Procedimientos
+                        </Link>
+                        <Link
+                            :href="route('portal.documents.index')"
+                            :class="[
+                                'px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors',
+                                route().current('portal.documents.*')
+                                    ? 'bg-amber-100/80 text-amber-900 font-bold'
+                                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                            ]"
+                        >
+                            Mis Documentos
+                        </Link>
+                    </nav>
                 </div>
 
                 <!-- User Navigation & Logout -->
@@ -63,6 +89,32 @@ const logout = () => {
                 </div>
             </div>
         </header>
+
+        <!-- Mobile sub-navigation bar -->
+        <div class="sm:hidden bg-white border-b border-slate-200 px-4 py-2 flex items-center space-x-2">
+            <Link
+                :href="route('portal.runs.index')"
+                :class="[
+                    'px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors',
+                    route().current('portal.runs.*')
+                        ? 'bg-amber-100/80 text-amber-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ]"
+            >
+                Procedimientos
+            </Link>
+            <Link
+                :href="route('portal.documents.index')"
+                :class="[
+                    'px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors',
+                    route().current('portal.documents.*')
+                        ? 'bg-amber-100/80 text-amber-900 font-bold'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                ]"
+            >
+                Mis Documentos
+            </Link>
+        </div>
 
         <!-- Flash Banner -->
         <div v-if="flash.banner" class="bg-indigo-600 text-white text-sm py-2.5 px-4 text-center font-medium shadow-sm flex items-center justify-center gap-2">
