@@ -11,3 +11,8 @@ Artisan::command('inspire', function () {
 // Verificación y recordatorios de pasos vencidos cada hora
 Schedule::command('sop:check-overdue-steps')->hourly();
 
+// Procesamiento de colas en entorno sin demonios (Hostinger compartido)
+Schedule::command('queue:work --stop-when-empty --max-time=50')
+    ->everyMinute()
+    ->withoutOverlapping();
+
