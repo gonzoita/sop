@@ -179,6 +179,121 @@ class SopRunController extends Controller
     }
 
     /**
+     * Approve an AI generated output, making it available to downstream steps.
+     */
+    public function approveAiStep(Request $request, SopRun $run, SopRunStep $step): JsonResponse|RedirectResponse
+    {
+        Gate::authorize('update', $run);
+
+        if ($step->sop_run_id !== $run->id || $step->status !== 'awaiting_approval') {
+            abort(422, 'Este paso no está pendiente de aprobación.');
+        }
+
+        $validated = $request->validate([
+            'edited_content' => ['nullable', 'string'],
+        ]);
+
+        $currentOutput = $step->output ?? [];
+        $finalContent = $validated['edited_content'] ?? ($currentOutput['content'] ?? '');
+        $outputKey = $currentOutput['output_key'] ?? null;
+
+        $step->status = 'approved';
+        $step->completed_at = now();
+        $step->output = array_merge($currentOutput, [
+            'content' => $finalContent,
+            'approved_by' => $request->user()->id,
+            'approved_at' => now()->toIso8601String(),
+        ]);
+        $step->save();
+
+        if ($outputKey) {
+            $outputs = $run->outputs ?? [];
+            $outputs[$outputKey] = $finalContent;
+            $run->outputs = $outputs;
+        }
+
+        // Recalcular estado de la corrida
+        $hasAwaiting = $run->steps()->where('status', 'awaiting_approval')->exists();
+        if (! $hasAwaiting) {
+            $allDone = $run->steps()->get()->every(fn ($s) => in_array($s->status, ['completed', 'approved', 'skipped']));
+            $run->status = $allDone ? 'completed' : 'in_progress';
+            if ($allDone && ! $run->completed_at) {
+                $run->completed_at = now();
+            }
+        }
+        $run->save();
+
+        \App\Events\RunStepApproved::dispatch($run, $step);
+        \App\Jobs\RunAiTask::dispatchNextEligibleAiTasks($run);
+
+        activity('ai_approval')
+            ->performedOn($step)
+            ->causedBy($request->user())
+            ->log("Paso de IA {$step->block_id} aprobado para variable '{$outputKey}'");
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'step' => $step, 'run' => $run]);
+        }
+
+        return back()->with('banner', 'Salida de IA aprobada e inyectada exitosamente.');
+    }
+
+    /**
+     * Reject an AI generated output with a reason.
+     */
+    public function rejectAiStep(Request $request, SopRun $run, SopRunStep $step): JsonResponse|RedirectResponse
+    {
+        Gate::authorize('update', $run);
+
+        if ($step->sop_run_id !== $run->id) {
+            abort(422, 'Paso no válido para esta corrida.');
+        }
+
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        $step->status = 'rejected';
+        $step->notes = $validated['reason'];
+        $step->save();
+
+        activity('ai_approval')
+            ->performedOn($step)
+            ->causedBy($request->user())
+            ->log("Paso de IA {$step->block_id} rechazado: {$validated['reason']}");
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'step' => $step]);
+        }
+
+        return back()->with('banner', 'Salida de IA rechazada.');
+    }
+
+    /**
+     * Re-queue an AI generation task.
+     */
+    public function retryAiStep(Request $request, SopRun $run, SopRunStep $step): JsonResponse|RedirectResponse
+    {
+        Gate::authorize('update', $run);
+
+        if ($step->sop_run_id !== $run->id || $step->block_type !== 'ai_task') {
+            abort(422, 'Solo se pueden reintentar pasos de IA.');
+        }
+
+        $step->status = 'pending';
+        $step->notes = null;
+        $step->save();
+
+        \App\Jobs\RunAiTask::dispatch($step->id);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true, 'step' => $step]);
+        }
+
+        return back()->with('banner', 'Generación de IA encolada para ejecución en segundo plano.');
+    }
+
+    /**
      * Remove the specified SOP run from storage.
      */
     public function destroy(SopRun $run): RedirectResponse

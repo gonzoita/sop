@@ -88,7 +88,12 @@ class StartSopRun
                 }
             }
 
-            return $run->fresh(['steps', 'sop', 'sopVersion', 'client']);
+            $freshRun = $run->fresh(['steps', 'sop', 'sopVersion', 'client']);
+
+            // Encolar tareas de IA que tengan sus dependencias listas
+            \App\Jobs\RunAiTask::dispatchNextEligibleAiTasks($freshRun);
+
+            return $freshRun;
         });
     }
 }

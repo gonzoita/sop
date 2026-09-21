@@ -141,13 +141,20 @@ const logout = () => {
                     </div>
                 </Link>
 
-                <div class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 opacity-70 cursor-not-allowed">
+                <Link
+                    :href="route('skills.index')"
+                    :class="[
+                        'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition',
+                        route().current('skills.*')
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
+                    ]"
+                >
                     <div class="flex items-center space-x-3">
                         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         <span>Skills de IA</span>
                     </div>
-                    <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded font-mono">Fase 3</span>
-                </div>
+                </Link>
 
                 <div class="pt-6">
                     <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">

@@ -12,6 +12,8 @@ import InputError from '@/Components/InputError.vue';
 const props = defineProps({
     credentials: Array,
     budget: Object,
+    stats: Object,
+    recent_generations: Array,
 });
 
 // Modal y formulario para nueva credencial
@@ -293,6 +295,116 @@ const submitBudget = () => {
                             </svg>
                             <span>Las claves se almacenan cifradas en base de datos (AES-256) y nunca se muestran en texto plano ni se envían en logs.</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Métricas y Panel de Consumo de IA -->
+            <div class="space-y-6">
+                <!-- Tarjetas de Resumen -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Llamadas Este Mes</span>
+                            <span class="p-2 rounded-xl bg-blue-50 text-blue-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 text-2xl font-bold text-slate-900">
+                            {{ stats?.total_generations || 0 }}
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Generaciones ejecutadas</p>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tokens Procesados</span>
+                            <span class="p-2 rounded-xl bg-purple-50 text-purple-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 text-2xl font-bold text-slate-900 font-mono">
+                            {{ Number(stats?.total_tokens || 0).toLocaleString() }}
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Prompt + Completion</p>
+                    </div>
+
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Costo Acumulado</span>
+                            <span class="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </span>
+                        </div>
+                        <div class="mt-3 text-2xl font-bold text-slate-900 font-mono">
+                            ${{ Number(budget.current_month_cost_usd || 0).toFixed(4) }} USD
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Facturable vía OpenRouter</p>
+                    </div>
+                </div>
+
+                <!-- Tabla de Historial Reciente de Generaciones -->
+                <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-base font-bold text-slate-900">Historial Reciente de Ejecuciones IA</h2>
+                            <p class="text-xs text-slate-500">Últimas llamadas procesadas en segundo plano</p>
+                        </div>
+                        <span class="text-xs text-slate-400 font-medium">Auto-registrado en auditable</span>
+                    </div>
+
+                    <div v-if="recent_generations && recent_generations.length > 0" class="overflow-x-auto">
+                        <table class="w-full text-left text-xs border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200/80 uppercase tracking-wider text-[10px]">
+                                    <th class="py-3 px-4 font-semibold">Fecha / Hora</th>
+                                    <th class="py-3 px-4 font-semibold">SOP / Paso</th>
+                                    <th class="py-3 px-4 font-semibold">Modelo</th>
+                                    <th class="py-3 px-4 font-semibold text-right">Tokens</th>
+                                    <th class="py-3 px-4 font-semibold text-right">Costo (USD)</th>
+                                    <th class="py-3 px-4 font-semibold text-right">Latencia</th>
+                                    <th class="py-3 px-4 font-semibold text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100 text-slate-700">
+                                <tr v-for="gen in recent_generations" :key="gen.id" class="hover:bg-slate-50/50 transition-colors">
+                                    <td class="py-3 px-4 text-slate-500 whitespace-nowrap">{{ gen.created_at }}</td>
+                                    <td class="py-3 px-4 max-w-[220px] truncate">
+                                        <div class="font-medium text-slate-900 truncate">{{ gen.sop_title }}</div>
+                                        <div class="text-[11px] text-slate-400 truncate">{{ gen.step_title }}</div>
+                                    </td>
+                                    <td class="py-3 px-4 whitespace-nowrap">
+                                        <span class="font-mono bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                                            {{ gen.model }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 px-4 text-right font-mono whitespace-nowrap">{{ gen.total_tokens.toLocaleString() }}</td>
+                                    <td class="py-3 px-4 text-right font-mono font-medium text-slate-900 whitespace-nowrap">${{ gen.cost_usd.toFixed(4) }}</td>
+                                    <td class="py-3 px-4 text-right font-mono text-slate-500 whitespace-nowrap">{{ gen.latency_ms ? gen.latency_ms + 'ms' : '-' }}</td>
+                                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                                        <span
+                                            :class="[
+                                                'px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider',
+                                                gen.status === 'succeeded'
+                                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                                    : (gen.status === 'failed' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-amber-100 text-amber-800 border border-amber-200')
+                                            ]"
+                                        >
+                                            {{ gen.status === 'succeeded' ? 'Éxito' : (gen.status === 'failed' ? 'Falló' : gen.status) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="text-center py-8 text-xs text-slate-400">
+                        No hay llamadas a IA registradas aún en este equipo.
                     </div>
                 </div>
             </div>

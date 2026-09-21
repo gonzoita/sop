@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 
@@ -56,7 +56,7 @@ blocks.value.forEach(b => {
     } else if (b.type === 'checklist') {
         checklistState.value[b.id] = step.output?.checked_items || [];
     } else if (b.type === 'ai_task') {
-        aiTaskOutputs.value[b.id] = step.output?.result || props.run.outputs?.[b.props?.output_key] || '';
+        aiTaskOutputs.value[b.id] = step.output?.content || step.output?.result || props.run.outputs?.[b.props?.output_key] || '';
     }
 });
 
@@ -95,11 +95,74 @@ const selectDecisionBranch = (step, branch) => {
     advanceStep(step, { selected_branch: branch.label, goto: branch.goto });
 };
 
-// AI Task manual submit
-const submitAiTask = (step) => {
-    const res = aiTaskOutputs.value[step.block_id];
-    advanceStep(step, { output: res });
+// AI Task actions (Fase 3)
+const rejectReason = ref({});
+const showRejectInput = ref({});
+
+const approveAi = (step, editedContent = null) => {
+    router.post(
+        route('runs.steps.approve-ai', [props.run.id, step.id]),
+        { edited_content: editedContent !== null ? editedContent : aiTaskOutputs.value[step.block_id] },
+        { preserveScroll: true }
+    );
 };
+
+const rejectAi = (step) => {
+    const reason = rejectReason.value[step.block_id];
+    if (!reason) {
+        alert('Debes indicar el motivo del rechazo.');
+        return;
+    }
+    router.post(
+        route('runs.steps.reject-ai', [props.run.id, step.id]),
+        { reason },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                showRejectInput.value[step.block_id] = false;
+            }
+        }
+    );
+};
+
+const retryAi = (step) => {
+    router.post(
+        route('runs.steps.retry-ai', [props.run.id, step.id]),
+        {},
+        { preserveScroll: true }
+    );
+};
+
+// Polling automático mientras existan tareas de IA en ejecución
+let pollTimer = null;
+const checkPolling = () => {
+    const hasRunning = (props.run.steps || []).some(s => ['running', 'queued'].includes(s.status));
+    if (hasRunning && !pollTimer) {
+        pollTimer = setInterval(() => {
+            router.reload({
+                only: ['run'],
+                preserveScroll: true,
+            });
+        }, 3000);
+    } else if (!hasRunning && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+};
+
+watch(() => props.run.steps, () => {
+    checkPolling();
+}, { deep: true });
+
+onMounted(() => {
+    checkPolling();
+});
+
+onUnmounted(() => {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+    }
+});
 
 // Approval decision
 const submitApproval = (step, decision) => {
@@ -428,35 +491,140 @@ const getStatusBadge = (status) => {
                             </div>
                         </div>
 
-                        <!-- AI TASK BLOCK (Fase 2: Manual) -->
+                        <!-- AI TASK BLOCK (Fase 3: Motor de IA y Aprobación) -->
                         <div v-else-if="block.type === 'ai_task'" class="space-y-3">
-                            <div class="p-3 bg-amber-50 border border-amber-200/80 rounded-xl flex items-start space-x-2.5">
-                                <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <div class="text-[11px] text-amber-800">
-                                    <strong>Generación de IA (Skill: {{ block.props?.skill_slug }}):</strong>
-                                    El motor automático de OpenRouter se integrará en la Fase 3. En esta fase puedes escribir o pegar el resultado manualmente para continuar con la corrida.
+                            <!-- Si está en running o queued -->
+                            <div v-if="['running', 'queued'].includes(stepsMap[block.id]?.status)" class="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center space-x-3">
+                                <svg class="w-5 h-5 text-indigo-600 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <div>
+                                    <div class="text-xs font-bold text-indigo-900">Generando entregable con IA en segundo plano...</div>
+                                    <div class="text-[11px] text-indigo-700">Modelo: {{ block.props?.model }} • Skill: {{ block.props?.skill_slug }}</div>
                                 </div>
                             </div>
 
-                            <div>
-                                <label class="block text-xs font-semibold text-slate-700 mb-1">
-                                    Entregable / Salida de la tarea:
-                                </label>
-                                <textarea
-                                    v-model="aiTaskOutputs[block.id]"
-                                    rows="3"
-                                    placeholder="Escribe el entregable o respuesta de esta tarea..."
-                                    class="w-full text-xs text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl font-mono"
-                                />
+                            <!-- Si falló -->
+                            <div v-else-if="stepsMap[block.id]?.status === 'failed'" class="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                                <div class="flex items-center space-x-2 text-rose-800 text-xs font-bold">
+                                    <svg class="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                    <span>Error en la generación de IA</span>
+                                </div>
+                                <p class="text-xs text-rose-700">{{ stepsMap[block.id]?.notes }}</p>
+                                <button
+                                    type="button"
+                                    @click="retryAi(stepsMap[block.id])"
+                                    class="px-3 py-1.5 text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition"
+                                >
+                                    Reintentar Generación
+                                </button>
                             </div>
 
-                            <button
-                                type="button"
-                                @click="submitAiTask(stepsMap[block.id])"
-                                class="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-xs transition cursor-pointer"
-                            >
-                                Guardar Entregable
-                            </button>
+                            <!-- Si está en awaiting_approval -->
+                            <div v-else-if="stepsMap[block.id]?.status === 'awaiting_approval'" class="space-y-3">
+                                <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-2.5">
+                                    <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                    <div class="text-xs text-amber-900">
+                                        <strong>Pendiente de Aprobación Humana:</strong> Revisa el entregable generado antes de desbloquear los pasos siguientes. Puedes editar el texto directamente si requiere ajustes.
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="flex items-center justify-between mb-1">
+                                        <label class="block text-xs font-semibold text-slate-700">
+                                            Borrador generado por IA:
+                                        </label>
+                                        <span class="text-[10px] text-slate-500 font-mono">
+                                            Variable: &#123;&#123; {{ block.props?.output_key }} &#125;&#125;
+                                        </span>
+                                    </div>
+                                    <textarea
+                                        v-model="aiTaskOutputs[block.id]"
+                                        rows="6"
+                                        class="w-full text-xs font-mono text-slate-800 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl"
+                                    />
+                                </div>
+
+                                <div class="flex items-center flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        @click="approveAi(stepsMap[block.id], aiTaskOutputs[block.id])"
+                                        class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition cursor-pointer"
+                                    >
+                                        ✓ Aprobar Entregable
+                                    </button>
+
+                                    <button
+                                        v-if="!showRejectInput[block.id]"
+                                        type="button"
+                                        @click="showRejectInput[block.id] = true"
+                                        class="px-3 py-2 text-xs font-semibold bg-white border border-slate-200 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl transition cursor-pointer"
+                                    >
+                                        ✕ Rechazar...
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        @click="retryAi(stepsMap[block.id])"
+                                        class="px-3 py-2 text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
+                                    >
+                                        ↻ Regenerar con IA
+                                    </button>
+                                </div>
+
+                                <div v-if="showRejectInput[block.id]" class="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                                    <label class="block text-xs font-semibold text-rose-900">Motivo del rechazo:</label>
+                                    <input
+                                        v-model="rejectReason[block.id]"
+                                        type="text"
+                                        placeholder="Indica qué debe corregirse..."
+                                        class="w-full text-xs rounded-lg border-rose-200 focus:ring-rose-500 focus:border-rose-500"
+                                    />
+                                    <div class="flex items-center space-x-2">
+                                        <button
+                                            type="button"
+                                            @click="rejectAi(stepsMap[block.id])"
+                                            class="px-3 py-1.5 text-xs font-semibold bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition cursor-pointer"
+                                        >
+                                            Confirmar Rechazo
+                                        </button>
+                                        <button
+                                            type="button"
+                                            @click="showRejectInput[block.id] = false"
+                                            class="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition cursor-pointer"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Si está approved o completed -->
+                            <div v-else-if="['approved', 'completed'].includes(stepsMap[block.id]?.status)" class="space-y-2">
+                                <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                                    <div class="flex items-center space-x-2 text-emerald-800 text-xs font-bold">
+                                        <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                        <span>Entregable Aprobado y Guardado</span>
+                                    </div>
+                                    <span class="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
+                                        &#123;&#123; {{ block.props?.output_key }} &#125;&#125;
+                                    </span>
+                                </div>
+                                <pre class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed">{{ stepsMap[block.id]?.output?.content || stepsMap[block.id]?.output?.result }}</pre>
+                            </div>
+
+                            <!-- Estado pendiente de inputs -->
+                            <div v-else class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs text-slate-500">
+                                <span>Esperando que los pasos anteriores suministren las variables requeridas...</span>
+                                <button
+                                    type="button"
+                                    @click="retryAi(stepsMap[block.id])"
+                                    class="px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition cursor-pointer"
+                                >
+                                    Ejecutar Ahora
+                                </button>
+                            </div>
                         </div>
 
                         <!-- APPROVAL BLOCK -->

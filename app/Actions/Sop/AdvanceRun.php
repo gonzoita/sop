@@ -156,6 +156,9 @@ class AdvanceRun
                 \App\Events\RunCompleted::dispatch($run);
             }
 
+            // Encolar siguientes tareas de IA si sus dependencias quedaron satisfechas
+            \App\Jobs\RunAiTask::dispatchNextEligibleAiTasks($run);
+
             return $run->fresh(['steps', 'sop', 'sopVersion', 'client']);
         });
     }

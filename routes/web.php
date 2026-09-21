@@ -44,9 +44,19 @@ Route::middleware([
     Route::resource('runs', \App\Http\Controllers\SopRunController::class)->only(['index', 'store', 'show', 'destroy']);
     Route::post('/runs/{run}/steps/{step}/advance', [\App\Http\Controllers\SopRunController::class, 'advanceStep'])->name('runs.steps.advance');
     Route::put('/runs/{run}/steps/{step}/assignment', [\App\Http\Controllers\SopRunController::class, 'updateStepAssignment'])->name('runs.steps.assignment');
+    Route::post('/runs/{run}/steps/{step}/approve-ai', [\App\Http\Controllers\SopRunController::class, 'approveAiStep'])->name('runs.steps.approve-ai');
+    Route::post('/runs/{run}/steps/{step}/reject-ai', [\App\Http\Controllers\SopRunController::class, 'rejectAiStep'])->name('runs.steps.reject-ai');
+    Route::post('/runs/{run}/steps/{step}/retry-ai', [\App\Http\Controllers\SopRunController::class, 'retryAiStep'])->name('runs.steps.retry-ai');
 
     // Gestión de Clientes (Agencia)
     Route::resource('clients', \App\Http\Controllers\ClientController::class)->only(['index', 'store', 'destroy']);
+
+    // Librería de Skills de IA
+    Route::resource('skills', \App\Http\Controllers\SkillController::class);
+    Route::post('/skills/{skill}/publish-version', [\App\Http\Controllers\SkillController::class, 'publishVersion'])->name('skills.publish-version');
+    Route::post('/skills/{skill}/versions/{version}/set-current', [\App\Http\Controllers\SkillController::class, 'setCurrentVersion'])->name('skills.set-current');
+    Route::get('/skills/{skill}/export/markdown', [\App\Http\Controllers\SkillController::class, 'exportMarkdown'])->name('skills.export.markdown');
+    Route::post('/skills/{skill}/import/markdown', [\App\Http\Controllers\SkillController::class, 'importMarkdown'])->name('skills.import.markdown');
 
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {
         Route::get('/audit-logs', [\App\Http\Controllers\AuditLogController::class, 'index'])
