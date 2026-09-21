@@ -56,6 +56,8 @@ Route::middleware([
     Route::post('/skills/{skill}/publish-version', [\App\Http\Controllers\SkillController::class, 'publishVersion'])->name('skills.publish-version');
     Route::post('/skills/{skill}/versions/{version}/set-current', [\App\Http\Controllers\SkillController::class, 'setCurrentVersion'])->name('skills.set-current');
     Route::get('/skills/{skill}/export/markdown', [\App\Http\Controllers\SkillController::class, 'exportMarkdown'])->name('skills.export.markdown');
+    Route::post('/skills/{skill}/import/preview', [\App\Http\Controllers\SkillController::class, 'previewImport'])->name('skills.import.preview');
+    Route::post('/skills/{skill}/import/confirm', [\App\Http\Controllers\SkillController::class, 'confirmImport'])->name('skills.import.confirm');
     Route::post('/skills/{skill}/import/markdown', [\App\Http\Controllers\SkillController::class, 'importMarkdown'])->name('skills.import.markdown');
 
     Route::middleware(['admin.2fa'])->prefix('admin')->name('admin.')->group(function () {

@@ -9,6 +9,8 @@ import InputLabel from '@/Components/InputLabel.vue';
 import TextInput from '@/Components/TextInput.vue';
 import InputError from '@/Components/InputError.vue';
 
+import axios from 'axios';
+
 const props = defineProps({
     skill: Object,
     versions: Array,
@@ -40,38 +42,108 @@ const submitPublish = () => {
     });
 };
 
-// Modal para importar Markdown
+// Modal y estado de Importación con Diff (Vía B)
 const showImportModal = ref(false);
-const importForm = useForm({
-    content: '',
-    changelog: 'Reimportado desde Markdown externo',
-});
+const importStep = ref('input'); // 'input' | 'preview'
+const importContent = ref('');
+const importFile = ref(null);
+const isPreviewLoading = ref(false);
+const previewError = ref('');
+const previewData = ref(null);
+const confirmChangelog = ref('');
+const isConfirming = ref(false);
+const confirmError = ref('');
 
 const openImportModal = () => {
-    importForm.reset();
-    importForm.changelog = 'Reimportado desde Markdown externo';
+    importStep.value = 'input';
+    importContent.value = '';
+    importFile.value = null;
+    previewError.value = '';
+    previewData.value = null;
+    confirmChangelog.value = '';
+    confirmError.value = '';
     showImportModal.value = true;
-};
-
-const submitImport = () => {
-    importForm.post(route('skills.import.markdown', props.skill.id), {
-        onSuccess: () => {
-            showImportModal.value = false;
-            importForm.reset();
-            selectedVersion.value = props.versions?.[0] || null;
-        },
-    });
 };
 
 const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+    importFile.value = file;
 
     const reader = new FileReader();
     reader.onload = (e) => {
-        importForm.content = e.target.result;
+        importContent.value = e.target.result;
     };
     reader.readAsText(file);
+};
+
+const requestPreview = async () => {
+    previewError.value = '';
+    isPreviewLoading.value = true;
+
+    try {
+        const formData = new FormData();
+        if (importFile.value) {
+            formData.append('file', importFile.value);
+        } else {
+            formData.append('content', importContent.value);
+        }
+
+        const response = await axios.post(route('skills.import.preview', props.skill.id), formData);
+        previewData.value = response.data;
+        confirmChangelog.value = '';
+        importStep.value = 'preview';
+    } catch (err) {
+        if (err.response?.data?.message) {
+            previewError.value = err.response.data.message;
+        } else {
+            previewError.value = 'Error al procesar el archivo. Revisa que sea un Markdown válido.';
+        }
+    } finally {
+        isPreviewLoading.value = false;
+    }
+};
+
+const submitConfirm = async () => {
+    if (!confirmChangelog.value || confirmChangelog.value.trim().length < 3) {
+        confirmError.value = 'El campo notas del cambio (changelog) es obligatorio (mínimo 3 caracteres).';
+        return;
+    }
+
+    confirmError.value = '';
+    isConfirming.value = true;
+
+    try {
+        await axios.post(route('skills.import.confirm', props.skill.id), {
+            base_version_id: previewData.value.base_version_id,
+            content: previewData.value.proposed.raw_body,
+            changelog: confirmChangelog.value.trim(),
+        });
+
+        showImportModal.value = false;
+        router.reload({
+            preserveScroll: true,
+            onSuccess: () => {
+                selectedVersion.value = props.versions?.[0] || null;
+            }
+        });
+    } catch (err) {
+        if (err.response?.data?.message) {
+            confirmError.value = err.response.data.message;
+        } else {
+            confirmError.value = 'Error al confirmar la importación.';
+        }
+    } finally {
+        isConfirming.value = false;
+    }
+};
+
+const cancelImport = () => {
+    showImportModal.value = false;
+    importStep.value = 'input';
+    previewData.value = null;
+    previewError.value = '';
+    confirmError.value = '';
 };
 
 const setCurrentVersion = (version) => {
@@ -315,20 +387,37 @@ const getSourceBadge = (source) => {
                 </template>
             </DialogModal>
 
-            <!-- Modal Importar Markdown (Vía B) -->
-            <DialogModal :show="showImportModal" @close="showImportModal = false" max-width="2xl">
+            <!-- Modal Importar Markdown con Diff (Vía B) -->
+            <DialogModal :show="showImportModal" @close="cancelImport" max-width="3xl">
                 <template #title>
-                    Importar Markdown Externo (Vía B)
+                    <div class="flex items-center justify-between">
+                        <span class="text-base font-bold text-slate-900">
+                            {{ importStep === 'preview' ? 'Revisión de Cambios (Diff de Skill)' : 'Importar Markdown Externo (Vía B)' }}
+                        </span>
+                        <span v-if="importStep === 'preview'" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                            Paso 2 de 2: Confirmación
+                        </span>
+                        <span v-else class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
+                            Paso 1 de 2: Ingesta
+                        </span>
+                    </div>
                 </template>
 
                 <template #content>
-                    <div class="space-y-4">
+                    <!-- PASO 1: Ingesta de archivo o texto -->
+                    <div v-if="importStep === 'input'" class="space-y-4">
                         <p class="text-xs text-slate-500">
-                            Sube o pega el contenido Markdown modificado en ChatGPT, Claude o Gemini. El sistema extraerá las instrucciones y creará una nueva versión con trazabilidad.
+                            Sube o pega el archivo Markdown trabajado en ChatGPT, Claude o Gemini. Se validará el encabezado front-matter y se mostrará un diff detallado antes de guardar cualquier cambio.
                         </p>
 
+                        <!-- Error de validación -->
+                        <div v-if="previewError" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                            <svg class="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            <span>{{ previewError }}</span>
+                        </div>
+
                         <div>
-                            <InputLabel value="Subir archivo .md" class="text-xs font-semibold text-slate-700 mb-1" />
+                            <InputLabel value="Subir archivo .md (Máx. 200 KB)" class="text-xs font-semibold text-slate-700 mb-1" />
                             <input
                                 type="file"
                                 accept=".md,.txt"
@@ -338,42 +427,182 @@ const getSourceBadge = (source) => {
                         </div>
 
                         <div>
-                            <InputLabel for="imp_content" value="O Pega el Contenido Markdown" class="text-xs font-semibold text-slate-700" />
+                            <InputLabel for="imp_content" value="O Pega el Contenido Markdown con Front-Matter" class="text-xs font-semibold text-slate-700" />
                             <textarea
                                 id="imp_content"
-                                v-model="importForm.content"
+                                v-model="importContent"
                                 rows="8"
-                                placeholder="---&#10;tipo: skill&#10;...&#10;---&#10;&#10;## Instrucciones&#10;..."
+                                placeholder="---&#10;tipo: skill&#10;slug: brief-de-marca&#10;version: 1&#10;---&#10;&#10;## Instrucciones del Sistema&#10;...&#10;&#10;## Prompt a Ejecutar&#10;..."
                                 class="mt-1 w-full font-mono text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
-                                required
                             ></textarea>
-                            <InputError :message="importForm.errors.content" class="mt-1 text-xs" />
+                        </div>
+                    </div>
+
+                    <!-- PASO 2: Vista previa con Diff -->
+                    <div v-else-if="importStep === 'preview' && previewData" class="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+                        <!-- Alertas de versión o SOPs -->
+                        <div v-if="previewData.warning" class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2">
+                            <svg class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            <span>{{ previewData.warning }}</span>
                         </div>
 
-                        <div>
-                            <InputLabel for="imp_changelog" value="Notas de la Importación" class="text-xs font-semibold text-slate-700" />
+                        <div v-if="Object.keys(previewData.removed_variables_in_sops || {}).length > 0" class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 space-y-1">
+                            <div class="font-bold flex items-center gap-1.5">
+                                <svg class="w-4 h-4 text-rose-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                <span>Advertencia: Variables eliminadas están en uso por SOPs publicados</span>
+                            </div>
+                            <p class="text-[11px] text-rose-700">
+                                Al eliminar estas variables, los siguientes SOPs no podrán inyectar datos a este skill:
+                            </p>
+                            <ul class="list-disc list-inside text-[11px] font-mono mt-1 space-y-0.5">
+                                <li v-for="(sops, v) in previewData.removed_variables_in_sops" :key="v">
+                                    <strong v-text="'{{' + v + '}}'"></strong> requerida en: {{ sops.join(', ') }}
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Resumen estadístico del Diff -->
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-slate-700">Líneas:</span>
+                                <span class="px-2 py-0.5 rounded font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    +{{ previewData.diff.total_added }} líneas
+                                </span>
+                                <span class="px-2 py-0.5 rounded font-mono font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                    -{{ previewData.diff.total_removed }} líneas
+                                </span>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-500 font-medium">Versión Base:</span>
+                                <span class="font-bold text-slate-800">v{{ previewData.base_version_number }}</span>
+                                <span class="text-slate-400">→</span>
+                                <span class="text-slate-500 font-medium">Nueva Versión:</span>
+                                <span class="font-bold text-indigo-700">v{{ previewData.base_version_number + 1 }}</span>
+                            </div>
+                        </div>
+
+                        <!-- Variables agregadas / eliminadas -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block">
+                                    Variables Nuevas (+{{ previewData.added_variables.length }})
+                                </span>
+                                <div v-if="previewData.added_variables.length > 0" class="flex flex-wrap gap-1">
+                                    <span v-for="v in previewData.added_variables" :key="v" v-text="'{{' + v + '}}'" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-50 text-emerald-800 border border-emerald-200"></span>
+                                </div>
+                                <span v-else class="text-[11px] text-slate-400 italic">Ninguna</span>
+                            </div>
+
+                            <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-rose-700 block">
+                                    Variables Eliminadas (-{{ previewData.removed_variables.length }})
+                                </span>
+                                <div v-if="previewData.removed_variables.length > 0" class="flex flex-wrap gap-1">
+                                    <span v-for="v in previewData.removed_variables" :key="v" v-text="'{{' + v + '}}'" class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-rose-50 text-rose-800 border border-rose-200"></span>
+                                </div>
+                                <span v-else class="text-[11px] text-slate-400 italic">Ninguna</span>
+                            </div>
+                        </div>
+
+                        <!-- Diff de System Prompt (si existe) -->
+                        <div v-if="previewData.diff.system_prompt.lines.length > 0" class="space-y-1">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-700 block">
+                                Diff: Instrucciones del Sistema (System Prompt)
+                            </span>
+                            <div class="p-3 bg-slate-900 rounded-xl font-mono text-xs overflow-x-auto max-h-56 divide-y divide-slate-800">
+                                <div
+                                    v-for="(line, idx) in previewData.diff.system_prompt.lines"
+                                    :key="idx"
+                                    :class="[
+                                        'px-2 py-0.5 flex items-start gap-2 whitespace-pre-wrap',
+                                        line.type === 'added' ? 'bg-emerald-950/60 text-emerald-300 font-semibold' : (line.type === 'removed' ? 'bg-rose-950/60 text-rose-300 font-semibold line-through' : 'text-slate-400')
+                                    ]"
+                                >
+                                    <span class="select-none w-4 shrink-0 opacity-60 text-center font-bold">
+                                        {{ line.type === 'added' ? '+' : (line.type === 'removed' ? '-' : ' ') }}
+                                    </span>
+                                    <span v-text="line.text" class="flex-1"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Diff de User Instructions / Prompt -->
+                        <div class="space-y-1">
+                            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-700 block">
+                                Diff: Prompt a Ejecutar (Instrucciones de Usuario)
+                            </span>
+                            <div class="p-3 bg-slate-900 rounded-xl font-mono text-xs overflow-x-auto max-h-72 divide-y divide-slate-800">
+                                <div
+                                    v-for="(line, idx) in previewData.diff.user_instructions.lines"
+                                    :key="idx"
+                                    :class="[
+                                        'px-2 py-0.5 flex items-start gap-2 whitespace-pre-wrap',
+                                        line.type === 'added' ? 'bg-emerald-950/60 text-emerald-300 font-semibold' : (line.type === 'removed' ? 'bg-rose-950/60 text-rose-300 font-semibold line-through' : 'text-slate-400')
+                                    ]"
+                                >
+                                    <span class="select-none w-4 shrink-0 opacity-60 text-center font-bold">
+                                        {{ line.type === 'added' ? '+' : (line.type === 'removed' ? '-' : ' ') }}
+                                    </span>
+                                    <span v-text="line.text" class="flex-1"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campo Obligatorio de Changelog -->
+                        <div class="pt-2">
+                            <InputLabel for="confirm_changelog" value="Notas del cambio / Changelog (Obligatorio) *" class="text-xs font-bold text-slate-800" />
                             <TextInput
-                                id="imp_changelog"
-                                v-model="importForm.changelog"
+                                id="confirm_changelog"
+                                v-model="confirmChangelog"
                                 type="text"
-                                class="mt-1 w-full text-sm rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="Ej: Ajuste de tono persuasivo y adición de variable de oferta en Claude 3.5"
+                                class="mt-1 w-full text-xs rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500"
+                                required
                             />
-                            <InputError :message="importForm.errors.changelog" class="mt-1 text-xs" />
+                            <p v-if="confirmError" class="text-xs text-rose-600 mt-1 font-semibold">{{ confirmError }}</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Este mensaje quedará registrado en el historial inmutable de versiones del skill.</p>
                         </div>
                     </div>
                 </template>
 
                 <template #footer>
-                    <SecondaryButton @click="showImportModal = false" class="!rounded-xl text-xs uppercase tracking-wider mr-2">
-                        Cancelar
-                    </SecondaryButton>
-                    <PrimaryButton
-                        @click="submitImport"
-                        :disabled="importForm.processing || !importForm.content"
-                        class="!rounded-xl text-xs uppercase tracking-wider"
-                    >
-                        Importar y Crear Versión
-                    </PrimaryButton>
+                    <div class="flex items-center justify-between w-full">
+                        <SecondaryButton @click="cancelImport" class="!rounded-xl text-xs uppercase tracking-wider">
+                            Cancelar
+                        </SecondaryButton>
+
+                        <div class="flex items-center gap-2">
+                            <button
+                                v-if="importStep === 'preview'"
+                                type="button"
+                                @click="importStep = 'input'"
+                                class="px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+                            >
+                                ← Cambiar Archivo
+                            </button>
+
+                            <PrimaryButton
+                                v-if="importStep === 'input'"
+                                @click="requestPreview"
+                                :disabled="isPreviewLoading || (!importContent && !importFile)"
+                                class="!rounded-xl text-xs uppercase tracking-wider"
+                            >
+                                <span v-if="isPreviewLoading">Analizando...</span>
+                                <span v-else>Revisar Cambios (Ver Diff) →</span>
+                            </PrimaryButton>
+
+                            <PrimaryButton
+                                v-else
+                                @click="submitConfirm"
+                                :disabled="isConfirming || !confirmChangelog || confirmChangelog.trim().length < 3"
+                                class="!rounded-xl text-xs uppercase tracking-wider !bg-emerald-600 hover:!bg-emerald-700"
+                            >
+                                <span v-if="isConfirming">Guardando...</span>
+                                <span v-else>✓ Confirmar e Importar</span>
+                            </PrimaryButton>
+                        </div>
+                    </div>
                 </template>
             </DialogModal>
         </div>
