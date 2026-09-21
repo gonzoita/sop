@@ -28,17 +28,19 @@ class RunDocumentBuilder
         $generatedDate = now()->format('Y-m-d H:i');
 
         // 1. Front-matter con metadatos del entregable
-        $yamlSop = addcslashes($sopTitle, '"\\');
-        $yamlClient = addcslashes($clientName, '"\\');
+        $yamlSop = json_encode($sopTitle, JSON_UNESCAPED_UNICODE);
+        $yamlClient = json_encode($clientName, JSON_UNESCAPED_UNICODE);
+        $yamlStatus = json_encode($status, JSON_UNESCAPED_UNICODE);
+        $yamlDate = json_encode($generatedDate, JSON_UNESCAPED_UNICODE);
 
         $doc = "---\n";
         $doc .= "tipo: entregable\n";
-        $doc .= "sop: \"{$yamlSop}\"\n";
+        $doc .= "sop: {$yamlSop}\n";
         $doc .= "version_sop: {$versionNumber}\n";
-        $doc .= "cliente: \"{$yamlClient}\"\n";
+        $doc .= "cliente: {$yamlClient}\n";
         $doc .= "ejecucion_id: {$runId}\n";
-        $doc .= "estado: \"{$status}\"\n";
-        $doc .= "fecha_generacion: \"{$generatedDate}\"\n";
+        $doc .= "estado: {$yamlStatus}\n";
+        $doc .= "fecha_generacion: {$yamlDate}\n";
         $doc .= "---\n\n";
 
         // Título del documento

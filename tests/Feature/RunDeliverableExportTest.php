@@ -472,4 +472,47 @@ class RunDeliverableExportTest extends TestCase
         $this->assertNotNull($activity);
         $this->assertEquals($user->id, $activity->causer_id);
     }
+
+    public function test_export_front_matter_escapes_client_name_with_quotes_and_newlines_and_parses_yaml(): void
+    {
+        $user = $this->createUserWithTeam('admin');
+        $this->actingAs($user);
+        session(['current_team_id' => $user->currentTeam->id]);
+
+        $clientName = "Café \"El Buen Grano\"\nSegunda Línea";
+
+        $client = Client::create([
+            'team_id' => $user->currentTeam->id,
+            'name' => $clientName,
+            'slug' => 'cafe-el-buen-grano',
+            'created_by' => $user->id,
+        ]);
+
+        $sop = $this->createCompleteSop($user);
+        $run = app(StartSopRun::class)->execute($user, $sop, [
+            'client_id' => $client->id,
+            'title' => 'Corrida con Cliente Especial',
+        ]);
+
+        $builder = app(RunDocumentBuilder::class);
+        $markdown = $builder->build($run);
+
+        // Extraer front-matter
+        $this->assertMatchesRegularExpression('/^---\s*\n(.*?)\n---/s', $markdown);
+        preg_match('/^---\s*\n(.*?)\n---/s', $markdown, $matches);
+        $yamlContent = $matches[1];
+
+        // Verificar que el YAML se parsea correctamente
+        $parsed = \Symfony\Component\Yaml\Yaml::parse($yamlContent);
+        $this->assertIsArray($parsed);
+        $this->assertEquals('entregable', $parsed['tipo']);
+        $this->assertEquals($clientName, $parsed['cliente']);
+        $this->assertEquals($sop->title, $parsed['sop']);
+
+        // Verificar la descarga con Content-Type text/markdown; charset=UTF-8
+        $response = $this->get(route('runs.export.deliverable', $run->id));
+        $response->assertStatus(200);
+        $this->assertStringContainsString('text/markdown', (string) $response->headers->get('Content-Type'));
+        $this->assertStringContainsString('charset=UTF-8', (string) $response->headers->get('Content-Type'));
+    }
 }
