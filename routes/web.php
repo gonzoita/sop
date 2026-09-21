@@ -47,6 +47,7 @@ Route::middleware([
     Route::post('/runs/{run}/steps/{step}/approve-ai', [\App\Http\Controllers\SopRunController::class, 'approveAiStep'])->name('runs.steps.approve-ai');
     Route::post('/runs/{run}/steps/{step}/reject-ai', [\App\Http\Controllers\SopRunController::class, 'rejectAiStep'])->name('runs.steps.reject-ai');
     Route::post('/runs/{run}/steps/{step}/retry-ai', [\App\Http\Controllers\SopRunController::class, 'retryAiStep'])->name('runs.steps.retry-ai');
+    Route::get('/runs/{run}/export/deliverable', [\App\Http\Controllers\SopRunController::class, 'exportDeliverable'])->name('runs.export.deliverable');
 
     // Gestión de Clientes (Agencia)
     Route::resource('clients', \App\Http\Controllers\ClientController::class)->only(['index', 'store', 'destroy']);

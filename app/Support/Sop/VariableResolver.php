@@ -118,4 +118,31 @@ class VariableResolver
 
         return $resolved;
     }
+
+    /**
+     * Resolve a template string for deliverable documents.
+     * Missing or empty variables are replaced with '[sin respuesta: key]'.
+     *
+     * @param  string  $template
+     * @param  array<string, mixed>  $values
+     * @return string
+     */
+    public static function resolveDeliverable(string $template, array $values): string
+    {
+        return preg_replace_callback(self::VARIABLE_REGEX, function ($matches) use ($values) {
+            $key = $matches[1];
+
+            if (array_key_exists($key, $values) && $values[$key] !== null && $values[$key] !== '') {
+                $val = $values[$key];
+
+                if (is_array($val)) {
+                    return json_encode($val, JSON_UNESCAPED_UNICODE);
+                }
+
+                return (string) $val;
+            }
+
+            return "[sin respuesta: {$key}]";
+        }, $template);
+    }
 }

@@ -8,12 +8,15 @@ use App\Models\Client;
 use App\Models\Sop;
 use App\Models\SopRun;
 use App\Models\SopRunStep;
+use App\Services\Runs\RunDocumentBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SopRunController extends Controller
 {
@@ -291,6 +294,32 @@ class SopRunController extends Controller
         }
 
         return back()->with('banner', 'Generación de IA encolada para ejecución en segundo plano.');
+    }
+
+    /**
+     * Export the finalized deliverable Markdown for a run.
+     */
+    public function exportDeliverable(Request $request, SopRun $run, RunDocumentBuilder $builder): StreamedResponse
+    {
+        Gate::authorize('view', $run);
+
+        $markdown = $builder->build($run);
+
+        activity('sop_runs')
+            ->performedOn($run)
+            ->causedBy($request->user())
+            ->log('Entregable Markdown exportado');
+
+        $sopSlug = $run->sop?->slug ?: Str::slug($run->sop?->title ?: 'sop');
+        $clientSlug = $run->client ? Str::slug($run->client->name) : 'general';
+        $date = now()->format('Y-m-d');
+        $filename = "{$sopSlug}-{$clientSlug}-{$date}.md";
+
+        return response()->streamDownload(function () use ($markdown) {
+            echo $markdown;
+        }, $filename, [
+            'Content-Type' => 'text/markdown; charset=UTF-8',
+        ]);
     }
 
     /**

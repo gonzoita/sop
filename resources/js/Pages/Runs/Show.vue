@@ -262,6 +262,17 @@ const getStatusBadge = (status) => {
                     <span v-if="run.client" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                         Cliente: {{ run.client.name }}
                     </span>
+
+                    <a
+                        :href="route('runs.export.deliverable', run.id)"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl border border-slate-200 shadow-sm transition-colors"
+                        title="Descargar documento entregable en Markdown con variables resueltas"
+                    >
+                        <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Exportar entregable</span>
+                    </a>
                 </div>
             </div>
 
